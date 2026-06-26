@@ -1,0 +1,1973 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 工具集 · 替换 + 迁移</title>
+    <!-- XLSX 用于迁移功能 -->
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js">
+    </script>
+    <style>
+        /* ============================================================
+                   CSS 变量 & 重置 (来自 API 替换工具)
+                   ============================================================ */
+        :root {
+            --primary: #4F46E5;
+            --primary-hover: #4338CA;
+            --primary-light: #EEF2FF;
+            --success: #10B981;
+            --danger: #EF4444;
+            --warning: #F59E0B;
+            --gray-50: #F9FAFB;
+            --gray-100: #F3F4F6;
+            --gray-200: #E5E7EB;
+            --gray-300: #D1D5DB;
+            --gray-400: #9CA3AF;
+            --gray-500: #6B7280;
+            --gray-600: #4B5563;
+            --gray-700: #374151;
+            --gray-800: #1F2937;
+            --gray-900: #111827;
+            --radius: 12px;
+            --shadow: 0 4px 24px rgba(0, 0, 0, 0.07);
+            --shadow-lg: 0 8px 40px rgba(0, 0, 0, 0.10);
+            --transition: 0.25s ease;
+            --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font);
+            background: var(--gray-50);
+            color: var(--gray-800);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 32px 20px 60px;
+            background-image: radial-gradient(circle at 10% 20%, rgba(79, 70, 229, 0.04) 0%, transparent 50%),
+                radial-gradient(circle at 90% 80%, rgba(124, 58, 237, 0.04) 0%, transparent 50%);
+        }
+
+        .app {
+            max-width: 960px;
+            width: 100%;
+            background: #ffffff;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow-lg);
+            padding: 36px 40px 44px;
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(2px);
+        }
+
+        @media (max-width: 640px) {
+            body {
+                padding: 16px 12px 40px;
+            }
+            .app {
+                padding: 24px 18px 30px;
+            }
+        }
+
+        /* ========== 头部 ========== */
+        .header {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+        }
+        .header-icon {
+            font-size: 32px;
+            line-height: 1;
+        }
+        .header h1 {
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+            background: linear-gradient(135deg, var(--primary), #7C3AED);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle {
+            color: var(--gray-500);
+            font-size: 15px;
+            margin-top: -2px;
+            margin-bottom: 28px;
+            padding-left: 46px;
+            border-left: 3px solid var(--primary-light);
+            padding-left: 16px;
+        }
+        @media (max-width: 480px) {
+            .subtitle {
+                padding-left: 0;
+                border-left: none;
+                margin-top: 4px;
+            }
+        }
+
+        /* ========== Tab 导航 ========== */
+        .tabs {
+            display: flex;
+            gap: 4px;
+            margin-bottom: 28px;
+            border-bottom: 2px solid var(--gray-200);
+            padding-bottom: 0;
+        }
+        .tab-btn {
+            padding: 10px 24px;
+            border: none;
+            background: transparent;
+            font-size: 15px;
+            font-weight: 600;
+            color: var(--gray-500);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: var(--transition);
+            font-family: var(--font);
+            border-radius: 0;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tab-btn:hover {
+            color: var(--gray-700);
+            background: var(--gray-50);
+        }
+        .tab-btn.active {
+            color: var(--primary);
+            border-bottom-color: var(--primary);
+        }
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.3s ease;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* ========== 卡片通用 ========== */
+        .card {
+            background: var(--gray-50);
+            border-radius: var(--radius);
+            padding: 20px 24px;
+            margin-bottom: 20px;
+            border: 1px solid var(--gray-200);
+            transition: var(--transition);
+        }
+        .card-title {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 600;
+            font-size: 15px;
+            color: var(--gray-700);
+            margin-bottom: 14px;
+        }
+        .card-title .badge {
+            font-size: 12px;
+            background: var(--primary);
+            color: #fff;
+            border-radius: 20px;
+            padding: 0 10px;
+            height: 20px;
+            line-height: 20px;
+            font-weight: 500;
+        }
+
+        /* ============================================================
+                   替换功能 专用样式
+                   ============================================================ */
+        .drop-zone {
+            border: 2px dashed var(--gray-300);
+            border-radius: var(--radius);
+            padding: 32px 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: var(--transition);
+            background: #ffffff;
+            position: relative;
+        }
+        .drop-zone:hover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+        .drop-zone.dragover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            transform: scale(1.01);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+        }
+        .drop-zone .icon {
+            font-size: 40px;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .drop-zone .main-text {
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 16px;
+        }
+        .drop-zone .sub-text {
+            color: var(--gray-400);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        .drop-zone .file-info {
+            margin-top: 14px;
+            padding: 10px 16px;
+            background: var(--gray-100);
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: var(--gray-700);
+            font-weight: 500;
+        }
+        .drop-zone .file-info .size {
+            font-weight: 400;
+            color: var(--gray-500);
+        }
+        .drop-zone input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .paste-section {
+            margin-top: 16px;
+            border-top: 1px dashed var(--gray-300);
+            padding-top: 16px;
+        }
+        .paste-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .paste-header label {
+            font-weight: 500;
+            font-size: 14px;
+            color: var(--gray-600);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .paste-header .actions-group {
+            display: flex;
+            gap: 8px;
+        }
+        .paste-header .btn-sm {
+            padding: 4px 16px;
+            font-size: 13px;
+            border: none;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+        }
+        .btn-sm-outline {
+            background: transparent;
+            color: var(--gray-600);
+            border: 1.5px solid var(--gray-300);
+        }
+        .btn-sm-outline:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+        .btn-sm-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-sm-primary:hover {
+            background: var(--primary-hover);
+        }
+        .paste-section textarea {
+            width: 100%;
+            padding: 12px 14px;
+            border: 1.5px solid var(--gray-200);
+            border-radius: 8px;
+            font-size: 13px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            resize: vertical;
+            background: #ffffff;
+            color: var(--gray-800);
+            transition: var(--transition);
+            line-height: 1.6;
+            min-height: 100px;
+        }
+        .paste-section textarea:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+        }
+        .paste-section textarea::placeholder {
+            color: var(--gray-400);
+            font-family: var(--font);
+        }
+
+        .rules-container {
+            margin-top: 4px;
+        }
+        .rule-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            background: #ffffff;
+            padding: 8px 12px 8px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            transition: var(--transition);
+        }
+        .rule-item:hover {
+            border-color: var(--gray-300);
+        }
+        .rule-item .field-group {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            min-width: 200px;
+        }
+        .rule-item .field-group input {
+            flex: 1;
+            min-width: 120px;
+            padding: 8px 12px;
+            border: 1.5px solid var(--gray-200);
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: var(--font);
+            transition: var(--transition);
+            background: #fafbfc;
+            color: var(--gray-800);
+        }
+        .rule-item .field-group input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.12);
+            background: #ffffff;
+        }
+        .rule-item .field-group .arrow {
+            color: var(--gray-400);
+            font-weight: 300;
+            font-size: 18px;
+            user-select: none;
+            flex-shrink: 0;
+        }
+        .rule-item .del-btn {
+            background: transparent;
+            border: none;
+            color: var(--gray-400);
+            font-size: 20px;
+            line-height: 1;
+            cursor: pointer;
+            padding: 0 4px;
+            transition: var(--transition);
+            flex-shrink: 0;
+        }
+        .rule-item .del-btn:hover {
+            color: var(--danger);
+        }
+        .rule-item .del-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .add-rule-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 18px;
+            border: 1.5px dashed var(--gray-300);
+            border-radius: 8px;
+            background: transparent;
+            color: var(--gray-600);
+            font-weight: 500;
+            font-size: 14px;
+            cursor: pointer;
+            transition: var(--transition);
+            font-family: var(--font);
+            margin-top: 4px;
+        }
+        .add-rule-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: var(--primary-light);
+        }
+        .add-rule-btn .plus {
+            font-size: 18px;
+            line-height: 1;
+        }
+
+        .source-badge {
+            font-size: 12px;
+            background: var(--gray-200);
+            color: var(--gray-600);
+            padding: 0 10px;
+            border-radius: 12px;
+            height: 22px;
+            line-height: 22px;
+            font-weight: 500;
+            display: inline-block;
+        }
+        .source-badge.active {
+            background: var(--primary-light);
+            color: var(--primary);
+        }
+
+        /* ============================================================
+                   迁移功能 专用样式
+                   ============================================================ */
+        .migrate-upload-area {
+            border: 2px dashed var(--gray-300);
+            border-radius: var(--radius);
+            padding: 30px 20px;
+            text-align: center;
+            background: #ffffff;
+            cursor: pointer;
+            transition: var(--transition);
+            position: relative;
+        }
+        .migrate-upload-area:hover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+        .migrate-upload-area.dragover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+            transform: scale(1.01);
+            box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.12);
+        }
+        .migrate-upload-area .icon {
+            font-size: 40px;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .migrate-upload-area .main-text {
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 16px;
+        }
+        .migrate-upload-area .sub-text {
+            color: var(--gray-400);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+        .migrate-upload-area input[type="file"] {
+            position: absolute;
+            inset: 0;
+            opacity: 0;
+            cursor: pointer;
+        }
+
+        .migrate-file-info {
+            margin-top: 12px;
+            padding: 10px 16px;
+            background: var(--gray-100);
+            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 14px;
+            color: var(--gray-700);
+            font-weight: 500;
+        }
+        .migrate-file-info .size {
+            font-weight: 400;
+            color: var(--gray-500);
+        }
+
+        .migrate-stats {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            padding: 8px 0;
+            font-size: 14px;
+            color: var(--gray-600);
+        }
+        .migrate-stats .stat-num {
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--primary);
+        }
+        .migrate-stats .stat-num.success {
+            color: var(--success);
+        }
+        .migrate-stats .stat-num.danger {
+            color: var(--danger);
+        }
+
+        .migrate-progress {
+            width: 100%;
+            height: 6px;
+            background: var(--gray-200);
+            border-radius: 3px;
+            margin: 12px 0;
+            overflow: hidden;
+        }
+        .migrate-progress-fill {
+            width: 0%;
+            height: 100%;
+            background: var(--primary);
+            transition: width 0.25s ease;
+            border-radius: 3px;
+        }
+
+        .migrate-log {
+            margin-top: 16px;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            background: #fafbfc;
+            color: var(--gray-800);
+            font-family: 'JetBrains Mono', 'Courier New', monospace;
+            font-size: 0.85rem;
+            padding: 12px;
+            height: 280px;
+            overflow-y: auto;
+        }
+        .migrate-log .log-entry {
+            padding: 4px 0;
+            border-bottom: 1px solid var(--gray-100);
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .migrate-log .log-success {
+            color: var(--success);
+        }
+        .migrate-log .log-error {
+            color: var(--danger);
+        }
+        .migrate-log .log-info {
+            color: var(--gray-500);
+        }
+
+        /* ============================================================
+                   按钮 & 通用
+                   ============================================================ */
+        .actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-top: 4px;
+        }
+        .btn {
+            padding: 10px 28px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 15px;
+            font-family: var(--font);
+            cursor: pointer;
+            transition: var(--transition);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            justify-content: center;
+            flex: 0 1 auto;
+        }
+        .btn-primary {
+            background: var(--primary);
+            color: #fff;
+        }
+        .btn-primary:hover {
+            background: var(--primary-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(79, 70, 229, 0.30);
+        }
+        .btn-primary:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-secondary {
+            background: var(--gray-200);
+            color: var(--gray-700);
+        }
+        .btn-secondary:hover {
+            background: var(--gray-300);
+        }
+        .btn-success {
+            background: var(--success);
+            color: #fff;
+        }
+        .btn-success:hover {
+            background: #059669;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.30);
+        }
+        .btn-success:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-outline {
+            background: transparent;
+            color: var(--gray-600);
+            border: 1.5px solid var(--gray-300);
+        }
+        .btn-outline:hover {
+            background: var(--gray-100);
+            border-color: var(--gray-400);
+        }
+
+        /* ============================================================
+                   结果预览 (替换功能)
+                   ============================================================ */
+        .result-area {
+            margin-top: 4px;
+        }
+        .result-stats {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
+            padding: 12px 16px;
+            background: #ffffff;
+            border-radius: 8px;
+            border: 1px solid var(--gray-200);
+            margin-bottom: 14px;
+        }
+        .result-stats .stat {
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            font-size: 14px;
+            color: var(--gray-600);
+        }
+        .result-stats .stat .num {
+            font-weight: 700;
+            font-size: 18px;
+            color: var(--primary);
+        }
+        .result-stats .stat .num.success {
+            color: var(--success);
+        }
+        .result-stats .stat .num.warning {
+            color: var(--warning);
+        }
+
+        .result-actions {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .result-content {
+            background: #ffffff;
+            border: 1px solid var(--gray-200);
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        .result-content .code-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            background: var(--gray-100);
+            border-bottom: 1px solid var(--gray-200);
+            font-size: 13px;
+            color: var(--gray-500);
+            font-weight: 500;
+        }
+        .result-content pre {
+            margin: 0;
+            padding: 16px 20px;
+            overflow-x: auto;
+            font-size: 13px;
+            font-family: 'JetBrains Mono', monospace;
+            line-height: 1.7;
+            color: var(--gray-800);
+            max-height: 480px;
+            overflow-y: auto;
+            background: #fafbfc;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+        .result-content .empty-hint {
+            padding: 40px 20px;
+            text-align: center;
+            color: var(--gray-400);
+            font-size: 15px;
+        }
+
+        /* ============================================================
+                   模态框 (运行预览)
+                   ============================================================ */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(4px);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+            animation: fadeIn 0.25s ease;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-box {
+            background: #ffffff;
+            border-radius: var(--radius);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25);
+            width: 100%;
+            max-width: 1000px;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            animation: slideUp 0.3s ease;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 24px;
+            border-bottom: 1px solid var(--gray-200);
+            flex-shrink: 0;
+        }
+        .modal-header .modal-title {
+            font-weight: 600;
+            font-size: 17px;
+            color: var(--gray-800);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .modal-header .modal-title .badge-version {
+            font-weight: 400;
+            font-size: 13px;
+            background: var(--gray-200);
+            padding: 0 10px;
+            border-radius: 12px;
+            color: var(--gray-600);
+        }
+        .modal-close {
+            background: transparent;
+            border: none;
+            font-size: 28px;
+            line-height: 1;
+            color: var(--gray-400);
+            cursor: pointer;
+            padding: 0 8px;
+            transition: var(--transition);
+        }
+        .modal-close:hover {
+            color: var(--gray-800);
+        }
+        .modal-body {
+            flex: 1;
+            padding: 0;
+            background: #ffffff;
+            position: relative;
+            min-height: 400px;
+        }
+        .modal-body iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+            background: #fff;
+            min-height: 400px;
+        }
+        @keyframes slideUp {
+            from {
+                transform: translateY(30px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        /* ============================================================
+                   Toast 消息
+                   ============================================================ */
+        .toast {
+            position: fixed;
+            top: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(-20px);
+            padding: 12px 28px;
+            border-radius: 10px;
+            background: var(--gray-900);
+            color: #fff;
+            font-size: 15px;
+            font-weight: 500;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+            opacity: 0;
+            transition: all 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+            pointer-events: none;
+            z-index: 9999;
+            max-width: 90vw;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .toast.success {
+            background: var(--success);
+        }
+        .toast.error {
+            background: var(--danger);
+        }
+        .toast.warning {
+            background: var(--warning);
+            color: var(--gray-900);
+        }
+
+        /* ============================================================
+                   响应式
+                   ============================================================ */
+        @media (max-width: 640px) {
+            .rule-item {
+                flex-direction: column;
+                align-items: stretch;
+                padding: 12px;
+            }
+            .rule-item .field-group {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 6px;
+            }
+            .rule-item .field-group .arrow {
+                text-align: center;
+                transform: rotate(90deg);
+            }
+            .rule-item .del-btn {
+                align-self: flex-end;
+            }
+            .actions .btn {
+                flex: 1;
+                min-width: 120px;
+            }
+            .result-stats {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 6px;
+            }
+            .result-content pre {
+                font-size: 12px;
+                padding: 12px 14px;
+                max-height: 340px;
+            }
+            .header h1 {
+                font-size: 20px;
+            }
+            .paste-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .paste-header .actions-group {
+                justify-content: flex-end;
+            }
+            .modal-box {
+                max-height: 95vh;
+            }
+            .modal-body {
+                min-height: 300px;
+            }
+            .modal-body iframe {
+                min-height: 300px;
+            }
+            .tabs {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+            }
+            .tab-btn {
+                padding: 8px 14px;
+                font-size: 13px;
+                white-space: nowrap;
+            }
+            .migrate-stats {
+                gap: 12px;
+                font-size: 13px;
+            }
+            .migrate-log {
+                height: 200px;
+                font-size: 0.8rem;
+            }
+        }
+
+        /* 滚动条美化 */
+        .result-content pre::-webkit-scrollbar,
+        .migrate-log::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        .result-content pre::-webkit-scrollbar-track,
+        .migrate-log::-webkit-scrollbar-track {
+            background: var(--gray-100);
+        }
+        .result-content pre::-webkit-scrollbar-thumb,
+        .migrate-log::-webkit-scrollbar-thumb {
+            background: var(--gray-300);
+            border-radius: 10px;
+        }
+        .result-content pre::-webkit-scrollbar-thumb:hover,
+        .migrate-log::-webkit-scrollbar-thumb:hover {
+            background: var(--gray-400);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ===== Toast ===== -->
+    <div id="toast" class="toast"></div>
+
+    <!-- ===== 模态框（运行预览） ===== -->
+    <div class="modal-overlay" id="previewModal">
+        <div class="modal-box">
+            <div class="modal-header">
+                <span class="modal-title">
+                    🖥️ 运行预览
+                    <span class="badge-version" id="previewVersion">修改后代码</span>
+                </span>
+                <button class="modal-close" id="modalCloseBtn">&times;</button>
+            </div>
+            <div class="modal-body">
+                <iframe id="previewIframe" sandbox="allow-scripts allow-modals allow-same-origin allow-popups allow-forms"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== 主应用 ===== -->
+    <div class="app" id="app">
+
+        <!-- 头部 -->
+        <div class="header">
+            <span class="header-icon">🔧</span>
+            <h1>API 工具集</h1>
+        </div>
+        <div class="subtitle">
+            地址替换（自动扩展 /all） · 数据迁移 · 纯本地处理
+        </div>
+
+        <!-- Tab 导航 -->
+        <div class="tabs" id="tabNav">
+            <button class="tab-btn active" data-tab="replace">🔗 API 地址替换</button>
+            <button class="tab-btn" data-tab="migrate">📊 数据迁移</button>
+        </div>
+
+        <!-- ==========================================================
+        TAB 1: API 地址替换
+        ========================================================== -->
+        <div class="tab-content active" id="tab-replace">
+
+            <!-- 上传卡片 -->
+            <div class="card">
+                <div class="card-title">
+                    📁 导入文件
+                    <span class="badge">支持 .html .htm .txt 等</span>
+                </div>
+                <div class="drop-zone" id="dropZone">
+                    <span class="icon">📤</span>
+                    <div class="main-text">拖拽文件到此处，或点击选择</div>
+                    <div class="sub-text">支持 HTML 及任何文本格式文件</div>
+                    <div id="fileInfo" style="display:none;" class="file-info">
+                        <span id="fileName">file.html</span>
+                        <span class="size" id="fileSize">(0 KB)</span>
+                        <span id="sourceBadge" class="source-badge active">📄 文件</span>
+                    </div>
+                    <input type="file" id="fileInput" accept=".html,.htm,.txt,.js,.css,.xml,.json,.svg,.xhtml,text/html,text/plain">
+                </div>
+
+                <div class="paste-section">
+                    <div class="paste-header">
+                        <label>
+                            ✏️ 或直接粘贴代码
+                            <span style="font-weight:400;color:var(--gray-400);font-size:12px;">（优先级高于文件）</span>
+                        </label>
+                        <div class="actions-group">
+                            <button class="btn-sm btn-sm-outline" id="clearPasteBtn">清空</button>
+                            <button class="btn-sm btn-sm-primary" id="loadPasteBtn">📥 加载到编辑器</button>
+                        </div>
+                    </div>
+                    <textarea id="pasteInput" rows="5" placeholder="将 HTML 或文本内容粘贴到这里，点击「加载到编辑器」即可作为源内容进行替换……"></textarea>
+                </div>
+            </div>
+
+            <!-- 替换规则 -->
+            <div class="card">
+                <div class="card-title">
+                    🔗 替换规则
+                    <span class="badge">支持多条 · 自动扩展 /all</span>
+                </div>
+                <div class="rules-container" id="rulesContainer"></div>
+                <button class="add-rule-btn" id="addRuleBtn">
+                    <span class="plus">+</span> 添加规则
+                </button>
+                <div style="margin-top:12px;font-size:13px;color:var(--gray-400);background:var(--gray-100);padding:8px 12px;border-radius:6px;">
+                    💡 每条规则会自动同时替换 <code>原地址</code> 和 <code>原地址/all</code> 为对应的新地址
+                </div>
+            </div>
+
+            <!-- 操作按钮 -->
+            <div class="actions" style="margin-bottom:20px;">
+                <button class="btn btn-primary" id="replaceBtn">🔄 执行替换</button>
+                <button class="btn btn-secondary" id="resetBtn">🗑️ 重置</button>
+            </div>
+
+            <!-- 结果 -->
+            <div class="result-area">
+                <div class="result-stats" id="statsBar" style="display:none;">
+                    <span class="stat">共替换 <span class="num" id="replaceCount">0</span> 处</span>
+                    <span class="stat">文件大小 <span class="num" id="resultSize">0</span> KB</span>
+                    <span class="stat" id="statusMsg" style="color:var(--gray-500);">✅ 替换完成</span>
+                </div>
+                <div class="result-actions" id="resultActions" style="display:none;">
+                    <button class="btn btn-success" id="downloadBtn">📥 下载修改后的文件</button>
+                    <button class="btn btn-secondary" id="copyBtn">📋 复制内容</button>
+                    <button class="btn btn-secondary" id="togglePreviewBtn">📄 显示原文件</button>
+                    <button class="btn btn-secondary" id="runPreviewBtn">▶ 运行预览</button>
+                </div>
+                <div class="result-content">
+                    <div class="code-header">
+                        <span class="lang">📄 内容预览</span>
+                        <span id="lineCount" style="color:var(--gray-400);font-weight:400;">0 行</span>
+                    </div>
+                    <div id="contentDisplay">
+                        <div class="empty-hint">⬆️ 上传文件或粘贴代码并执行替换后，这里会显示修改后的内容</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==========================================================
+        TAB 2: 数据迁移
+        ========================================================== -->
+        <div class="tab-content" id="tab-migrate">
+
+            <!-- API 地址 -->
+            <div class="card">
+                <div class="card-title">
+                    📡 目标 API
+                    <span class="badge">接收数据</span>
+                </div>
+                <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                    <label style="font-weight:600;color:var(--gray-700);min-width:80px;">API 地址：</label>
+                    <input type="text" id="migrateApiUrl" value="https://wzkjgz.site/api/auotd4g9jy"
+                    placeholder="请输入目标 API URL"
+                    style="flex:1;min-width:200px;padding:10px 14px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:var(--font);background:#ffffff;color:var(--gray-800);transition:var(--transition);">
+                    <span style="font-size:12px;color:var(--gray-400);background:var(--gray-100);padding:4px 12px;border-radius:12px;">🔄 自动同步自替换规则</span>
+                </div>
+                <div style="margin-top:8px;font-size:13px;color:var(--gray-400);">
+                    ⚡ 并发上传（默认 5 条同时发送），大幅提升速度
+                </div>
+            </div>
+
+            <!-- 上传 Excel -->
+            <div class="card">
+                <div class="card-title">
+                    📂 选择 Excel 文件
+                    <span class="badge">.xlsx .xls</span>
+                </div>
+                <div class="migrate-upload-area" id="migrateDropZone">
+                    <span class="icon">📊</span>
+                    <div class="main-text">点击或拖拽文件到此处</div>
+                    <div class="sub-text">支持 .xlsx, .xls 格式</div>
+                    <input type="file" id="migrateFileInput" accept=".xlsx,.xls">
+                </div>
+                <div id="migrateFileInfo" class="migrate-file-info" style="display:none;">
+                    <span id="migrateFileName">file.xlsx</span>
+                    <span class="size" id="migrateFileSize">(0 KB)</span>
+                    <span style="color:var(--gray-400);font-weight:400;" id="migrateRowCount">0 行数据</span>
+                </div>
+            </div>
+
+            <!-- 进度 & 统计 -->
+            <div class="card">
+                <div class="card-title">
+                    📈 上传进度
+                </div>
+                <div class="migrate-progress">
+                    <div class="migrate-progress-fill" id="migrateProgressFill"></div>
+                </div>
+                <div class="migrate-stats">
+                    <span>📊 总计: <span class="stat-num" id="migrateTotal">0</span></span>
+                    <span>✅ 成功: <span class="stat-num success" id="migrateSuccess">0</span></span>
+                    <span>❌ 失败: <span class="stat-num danger" id="migrateFail">0</span></span>
+                    <span>⏳ 进度: <span id="migratePercent">0</span>%</span>
+                </div>
+                <div class="actions" style="margin-top:12px;">
+                    <button class="btn btn-primary" id="migrateUploadBtn" disabled>🚀 开始上传</button>
+                    <button class="btn btn-secondary" id="migrateClearBtn">🗑️ 清空日志</button>
+                </div>
+            </div>
+
+            <!-- 日志 -->
+            <div class="card" style="margin-bottom:0;">
+                <div class="card-title">
+                    📋 运行日志
+                    <span class="badge" style="background:var(--gray-400);">实时</span>
+                </div>
+                <div class="migrate-log" id="migrateLogBox">
+                    <div class="log-entry log-info">📌 请填写 API 地址，选择 Excel 文件并点击「开始上传」</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 底部 -->
+        <div style="margin-top:28px;text-align:center;font-size:13px;color:var(--gray-400);border-top:1px solid var(--gray-200);padding-top:18px;">
+            🔒 所有操作在本地浏览器中完成，文件不会上传到任何服务器
+        </div>
+    </div>
+
+    <script>
+        // ================================================================
+        //  主脚本：融合 替换 + 迁移
+        // ================================================================
+
+        (function() {
+            'use strict';
+
+            // ============================================================
+            //  1. Tab 切换
+            // ============================================================
+            const tabBtns = document.querySelectorAll('.tab-btn');
+            const tabContents = {
+                replace: document.getElementById('tab-replace'),
+                migrate: document.getElementById('tab-migrate'),
+            };
+
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    const tab = this.dataset.tab;
+                    tabBtns.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    Object.keys(tabContents).forEach(key => {
+                        tabContents[key].classList.toggle('active', key === tab);
+                    });
+                });
+            });
+
+            // ============================================================
+            //  2. Toast 工具
+            // ============================================================
+            const toastEl = document.getElementById('toast');
+
+            function showToast(message, type = 'info', duration = 2800) {
+                toastEl.textContent = message;
+                toastEl.className = 'toast';
+                if (type === 'success') toastEl.classList.add('success');
+                else if (type === 'error') toastEl.classList.add('error');
+                else if (type === 'warning') toastEl.classList.add('warning');
+                void toastEl.offsetWidth;
+                toastEl.classList.add('show');
+                clearTimeout(toastEl._timer);
+                toastEl._timer = setTimeout(() => toastEl.classList.remove('show'), duration);
+            }
+
+            // ============================================================
+            //  3. API 地址替换功能（完整保留，精简版）
+            // ============================================================
+
+            // ---- DOM ----
+            const fileInput = document.getElementById('fileInput');
+            const dropZone = document.getElementById('dropZone');
+            const fileInfo = document.getElementById('fileInfo');
+            const fileName = document.getElementById('fileName');
+            const fileSize = document.getElementById('fileSize');
+            const sourceBadge = document.getElementById('sourceBadge');
+            const pasteInput = document.getElementById('pasteInput');
+            const loadPasteBtn = document.getElementById('loadPasteBtn');
+            const clearPasteBtn = document.getElementById('clearPasteBtn');
+            const rulesContainer = document.getElementById('rulesContainer');
+            const addRuleBtn = document.getElementById('addRuleBtn');
+            const replaceBtn = document.getElementById('replaceBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const downloadBtn = document.getElementById('downloadBtn');
+            const copyBtn = document.getElementById('copyBtn');
+            const togglePreviewBtn = document.getElementById('togglePreviewBtn');
+            const runPreviewBtn = document.getElementById('runPreviewBtn');
+            const statsBar = document.getElementById('statsBar');
+            const replaceCount = document.getElementById('replaceCount');
+            const resultSize = document.getElementById('resultSize');
+            const statusMsg = document.getElementById('statusMsg');
+            const resultActions = document.getElementById('resultActions');
+            const contentDisplay = document.getElementById('contentDisplay');
+            const lineCount = document.getElementById('lineCount');
+            const previewModal = document.getElementById('previewModal');
+            const modalCloseBtn = document.getElementById('modalCloseBtn');
+            const previewIframe = document.getElementById('previewIframe');
+            const previewVersion = document.getElementById('previewVersion');
+
+            let originalContent = '';
+            let modifiedContent = '';
+            let currentFileName = '';
+            let isShowingOriginal = false;
+            let sourceType = 'none';
+            let ruleCounter = 0;
+
+            // ---- 工具 ----
+            function escapeRegExp(str) {
+                return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            }
+
+            function formatFileSize(bytes) {
+                if (bytes < 1024) return bytes + ' B';
+                if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+                return (bytes / 1048576).toFixed(1) + ' MB';
+            }
+
+            function escapeHtml(text) {
+                if (!text) return '';
+                const div = document.createElement('div');
+                div.textContent = text;
+                return div.innerHTML;
+            }
+
+            function getLineCount(text) {
+                if (!text) return 0;
+                return text.split('\n').length;
+            }
+
+            function updateSourceBadge(type, name) {
+                sourceType = type;
+                if (type === 'file') {
+                    sourceBadge.textContent = '📄 文件: ' + name;
+                    sourceBadge.className = 'source-badge active';
+                } else if (type === 'paste') {
+                    sourceBadge.textContent = '✏️ 粘贴内容';
+                    sourceBadge.className = 'source-badge active';
+                } else {
+                    sourceBadge.textContent = '📄 未加载';
+                    sourceBadge.className = 'source-badge';
+                }
+            }
+
+            function renderPreview(content) {
+                if (!content) {
+                    contentDisplay.innerHTML = '<div class="empty-hint">📄 内容为空</div>';
+                    lineCount.textContent = '0 行';
+                    return;
+                }
+                const escaped = escapeHtml(content);
+                contentDisplay.innerHTML =
+                    `<pre style="white-space:pre-wrap;word-break:break-all;font-family:inherit;margin:0;padding:16px 20px;max-height:480px;overflow-y:auto;">${escaped}</pre>`;
+                const pre = contentDisplay.querySelector('pre');
+                if (pre) pre.scrollTop = 0;
+                lineCount.textContent = getLineCount(content) + ' 行';
+            }
+
+            // ---- 同步迁移 API 地址 ----
+            function syncMigrateApiUrl(value) {
+                const el = document.getElementById('migrateApiUrl');
+                if (el && value && value.trim()) {
+                    el.value = value.trim();
+                }
+            }
+
+            // ---- 规则管理 ----
+            function createRuleElement(oldVal = '', newVal = '', isFirst = false) {
+                const id = 'rule-' + (++ruleCounter);
+                const div = document.createElement('div');
+                div.className = 'rule-item';
+                div.dataset.id = id;
+                div.innerHTML = `
+                    <div class="field-group">
+                        <input type="text" class="rule-old" placeholder="原 API 地址" value="${oldVal}" spellcheck="false">
+                        <span class="arrow">→</span>
+                        <input type="text" class="rule-new" placeholder="新 API 地址" value="${newVal}" spellcheck="false">
+                    </div>
+                    <button class="del-btn" ${isFirst ? 'disabled' : ''} title="删除此规则">✕</button>
+                `;
+                const delBtn = div.querySelector('.del-btn');
+                delBtn.addEventListener('click', function() {
+                    const items = rulesContainer.querySelectorAll('.rule-item');
+                    if (items.length <= 1) { showToast('至少保留一条规则', 'warning'); return; }
+                    div.remove();
+                    updateDeleteButtons();
+                });
+                const inputs = div.querySelectorAll('input');
+                inputs.forEach((inp, idx) => {
+                    inp.addEventListener('keydown', function(e) {
+                        if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (idx === 0) { inputs[1].focus(); return; }
+                            const allItems = rulesContainer.querySelectorAll('.rule-item');
+                            const currentIdx = Array.from(allItems).indexOf(div);
+                            if (currentIdx < allItems.length - 1) {
+                                const nextOld = allItems[currentIdx + 1].querySelector('.rule-old');
+                                if (nextOld) nextOld.focus();
+                            } else {
+                                addRuleBtn.click();
+                                const newItems = rulesContainer.querySelectorAll('.rule-item');
+                                const lastOld = newItems[newItems.length - 1].querySelector('.rule-old');
+                                if (lastOld) lastOld.focus();
+                            }
+                        }
+                    });
+                });
+
+                // ---- 新增：新地址输入时同步到迁移 API ----
+                const newInput = inputs[1]; // .rule-new
+                if (newInput) {
+                    // 用户输入时同步
+                    newInput.addEventListener('input', function() {
+                        const val = this.value.trim();
+                        if (val) {
+                            syncMigrateApiUrl(val);
+                        }
+                        // 如果清空，不覆盖迁移地址（保留最后有效值）
+                    });
+                    // 如果初始值非空，立即同步
+                    if (newVal && newVal.trim()) {
+                        syncMigrateApiUrl(newVal.trim());
+                    }
+                }
+
+                return div;
+            }
+
+            function updateDeleteButtons() {
+                const items = rulesContainer.querySelectorAll('.rule-item');
+                items.forEach((item, idx) => {
+                    const btn = item.querySelector('.del-btn');
+                    if (btn) btn.disabled = (items.length <= 1);
+                });
+            }
+
+            function addRule(oldVal = '', newVal = '') {
+                const isFirst = rulesContainer.children.length === 0;
+                const el = createRuleElement(oldVal, newVal, isFirst);
+                rulesContainer.appendChild(el);
+                updateDeleteButtons();
+                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
+
+            function getAllRules() {
+                const items = rulesContainer.querySelectorAll('.rule-item');
+                const rules = [];
+                items.forEach(item => {
+                    const oldInput = item.querySelector('.rule-old');
+                    const newInput = item.querySelector('.rule-new');
+                    if (oldInput && newInput) {
+                        const oldVal = oldInput.value.trim();
+                        const newVal = newInput.value.trim();
+                        if (oldVal || newVal) rules.push({ old: oldVal, new: newVal });
+                    }
+                });
+                return rules;
+            }
+
+            // ---- 加载粘贴 ----
+            function loadPasteContent() {
+                const text = pasteInput.value;
+                if (!text || text.trim() === '') {
+                    showToast('请先在文本框中粘贴内容', 'warning');
+                    return;
+                }
+                originalContent = text;
+                modifiedContent = text;
+                currentFileName = '粘贴内容';
+                isShowingOriginal = false;
+                togglePreviewBtn.textContent = '📄 显示原文件';
+                fileInfo.style.display = 'inline-flex';
+                fileName.textContent = '📋 粘贴内容';
+                fileSize.textContent = '(' + formatFileSize(new Blob([text]).size) + ')';
+                updateSourceBadge('paste', '粘贴内容');
+                renderPreview(originalContent);
+                statsBar.style.display = 'none';
+                resultActions.style.display = 'none';
+                downloadBtn.disabled = true;
+                showToast('✅ 已加载粘贴内容 (' + formatFileSize(new Blob([text]).size) + ')', 'success');
+            }
+
+            // ---- 替换（自动扩展 /all） ----
+            function performReplace() {
+                let sourceText = '';
+                const pasteText = pasteInput.value;
+                if (pasteText && pasteText.trim() !== '') {
+                    if (sourceType !== 'paste' || originalContent !== pasteText) {
+                        loadPasteContent();
+                        sourceText = originalContent;
+                    } else {
+                        sourceText = originalContent;
+                    }
+                } else {
+                    if (!originalContent) {
+                        showToast('请先上传文件或粘贴代码', 'warning');
+                        return;
+                    }
+                    sourceText = originalContent;
+                }
+                if (!sourceText || sourceText.trim() === '') {
+                    showToast('源内容为空，请检查', 'warning');
+                    return;
+                }
+                const rules = getAllRules();
+                const validRules = rules.filter(r => r.old !== '');
+                if (validRules.length === 0) {
+                    showToast('请至少添加一条有效的替换规则', 'warning');
+                    return;
+                }
+                let result = sourceText;
+                let totalCount = 0;
+                const details = [];
+
+                validRules.forEach(rule => {
+                    const oldApi = rule.old;
+                    const newApi = rule.new;
+                    if (!oldApi) return;
+
+                    // ---- 主替换 ----
+                    const regexMain = new RegExp(escapeRegExp(oldApi), 'g');
+                    const matchesMain = result.match(regexMain);
+                    const countMain = matchesMain ? matchesMain.length : 0;
+                    if (countMain > 0) {
+                        result = result.replace(regexMain, newApi);
+                        totalCount += countMain;
+                        details.push(`"${oldApi}" → "${newApi}" (${countMain}处)`);
+                    } else {
+                        details.push(`"${oldApi}" → (未找到)`);
+                    }
+
+                    // ---- 自动扩展 /all 替换（如果原地址不以 /all 结尾） ----
+                    if (!oldApi.endsWith('/all')) {
+                        const oldApiAll = oldApi.replace(/\/+$/, '') + '/all';
+                        const newApiAll = newApi.replace(/\/+$/, '') + '/all';
+                        const regexAll = new RegExp(escapeRegExp(oldApiAll), 'g');
+                        const matchesAll = result.match(regexAll);
+                        const countAll = matchesAll ? matchesAll.length : 0;
+                        if (countAll > 0) {
+                            result = result.replace(regexAll, newApiAll);
+                            totalCount += countAll;
+                            details.push(`"${oldApiAll}" → "${newApiAll}" (${countAll}处)`);
+                        }
+                    }
+                });
+
+                if (totalCount === 0) {
+                    showToast('未找到任何匹配的 API 地址（包括 /all 变体），请检查规则', 'warning');
+                    modifiedContent = sourceText;
+                    renderPreview(sourceText);
+                    statsBar.style.display = 'flex';
+                    replaceCount.textContent = '0';
+                    const sizeBytes = new Blob([sourceText]).size;
+                    resultSize.textContent = formatFileSize(sizeBytes);
+                    statusMsg.innerHTML = '⚠️ 未找到匹配项';
+                    statusMsg.style.color = 'var(--warning)';
+                    resultActions.style.display = 'flex';
+                    downloadBtn.disabled = true;
+                    return;
+                }
+                modifiedContent = result;
+                statsBar.style.display = 'flex';
+                replaceCount.textContent = totalCount;
+                const sizeBytes = new Blob([result]).size;
+                resultSize.textContent = formatFileSize(sizeBytes);
+                lineCount.textContent = getLineCount(result) + ' 行';
+                statusMsg.innerHTML = '✅ 替换完成（含 /all 扩展）';
+                statusMsg.style.color = 'var(--success)';
+                renderPreview(result);
+                resultActions.style.display = 'flex';
+                downloadBtn.disabled = false;
+                isShowingOriginal = false;
+                togglePreviewBtn.textContent = '📄 显示原文件';
+                showToast('✅ 共替换 ' + totalCount + ' 处 API 地址（含 /all 扩展）', 'success');
+                if (details.length > 0) console.log('替换详情:', details.join('; '));
+            }
+
+            // ---- 预览切换 ----
+            function togglePreview() {
+                if (!originalContent) { showToast('请先加载内容', 'warning'); return; }
+                isShowingOriginal = !isShowingOriginal;
+                const content = isShowingOriginal ? originalContent : modifiedContent;
+                togglePreviewBtn.textContent = isShowingOriginal ? '📄 显示修改后' : '📄 显示原文件';
+                renderPreview(content);
+                if (isShowingOriginal) {
+                    statusMsg.innerHTML = '👁️ 查看原文件';
+                    statusMsg.style.color = 'var(--gray-500)';
+                } else {
+                    const count = parseInt(replaceCount.textContent) || 0;
+                    if (count === 0) {
+                        statusMsg.innerHTML = '⚠️ 未找到匹配项';
+                        statusMsg.style.color = 'var(--warning)';
+                    } else {
+                        statusMsg.innerHTML = '✅ 替换完成（含 /all 扩展）';
+                        statusMsg.style.color = 'var(--success)';
+                    }
+                }
+            }
+
+            // ---- 运行预览 ----
+            function openPreview() {
+                let content = '',
+                    version = '';
+                if (isShowingOriginal) {
+                    content = originalContent;
+                    version = '原始代码';
+                } else {
+                    content = modifiedContent || originalContent;
+                    version = '修改后代码';
+                }
+                if (!content || content.trim() === '') {
+                    showToast('没有可预览的内容', 'warning');
+                    return;
+                }
+                previewVersion.textContent = version;
+                try {
+                    const doc = previewIframe.contentDocument || previewIframe.contentWindow.document;
+                    doc.open();
+                    doc.write(content);
+                    doc.close();
+                } catch (e) {
+                    try { previewIframe.srcdoc = content; } catch (e2) {
+                        showToast('预览失败，请检查内容是否有效', 'error');
+                        return;
+                    }
+                }
+                previewModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+            }
+
+            function closePreview() {
+                previewModal.classList.remove('active');
+                document.body.style.overflow = '';
+                try {
+                    const doc = previewIframe.contentDocument || previewIframe.contentWindow.document;
+                    doc.open();
+                    doc.write('');
+                    doc.close();
+                } catch (e) { /* ignore */ }
+            }
+
+            // ---- 下载 & 复制 & 重置 ----
+            function downloadFile() {
+                if (!modifiedContent) { showToast('请先执行替换操作', 'warning'); return; }
+                const baseName = currentFileName || 'modified.html';
+                const ext = baseName.includes('.') ? baseName.substring(baseName.lastIndexOf('.')) : '.html';
+                const nameWithoutExt = baseName.replace(/\.[^.]+$/, '');
+                const downloadName = nameWithoutExt + '_modified' + ext;
+                const blob = new Blob([modifiedContent], { type: 'text/html;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = downloadName;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+                showToast('📥 已下载: ' + downloadName, 'success');
+            }
+
+            function copyContent() {
+                const content = isShowingOriginal ? originalContent : modifiedContent;
+                if (!content) { showToast('没有可复制的内容', 'warning'); return; }
+                navigator.clipboard.writeText(content).then(() => {
+                    showToast('📋 已复制到剪贴板', 'success');
+                }).catch(() => {
+                    const ta = document.createElement('textarea');
+                    ta.value = content;
+                    document.body.appendChild(ta);
+                    ta.select();
+                    try { document.execCommand('copy');
+                        showToast('📋 已复制到剪贴板', 'success'); } catch (e) {
+                        showToast('复制失败，请手动选择复制', 'error'); }
+                    document.body.removeChild(ta);
+                });
+            }
+
+            function resetAll() {
+                originalContent = '';
+                modifiedContent = '';
+                currentFileName = '';
+                isShowingOriginal = false;
+                sourceType = 'none';
+                fileInput.value = '';
+                fileInfo.style.display = 'none';
+                pasteInput.value = '';
+                rulesContainer.innerHTML = '';
+                addRule('', '');
+                statsBar.style.display = 'none';
+                resultActions.style.display = 'none';
+                downloadBtn.disabled = true;
+                togglePreviewBtn.textContent = '📄 显示原文件';
+                contentDisplay.innerHTML =
+                    '<div class="empty-hint">⬆️ 上传文件或粘贴代码并执行替换后，这里会显示修改后的内容</div>';
+                lineCount.textContent = '0 行';
+                updateSourceBadge('none', '');
+                showToast('已重置所有内容', 'info', 1600);
+                closePreview();
+            }
+
+            // ---- 文件处理 ----
+            function handleFile(file) {
+                if (!file) return;
+                if (file.size > 10 * 1024 * 1024) {
+                    showToast('文件过大（超过 10MB）', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const content = e.target.result;
+                        originalContent = content;
+                        modifiedContent = content;
+                        currentFileName = file.name;
+                        isShowingOriginal = false;
+                        togglePreviewBtn.textContent = '📄 显示原文件';
+                        fileInfo.style.display = 'inline-flex';
+                        fileName.textContent = file.name;
+                        fileSize.textContent = '(' + formatFileSize(file.size) + ')';
+                        updateSourceBadge('file', file.name);
+                        renderPreview(originalContent);
+                        statsBar.style.display = 'none';
+                        resultActions.style.display = 'none';
+                        downloadBtn.disabled = true;
+                        showToast('✅ 已加载: ' + file.name + ' (' + formatFileSize(file.size) + ')', 'success');
+                    } catch (err) {
+                        showToast('读取文件失败: ' + err.message, 'error');
+                    }
+                };
+                reader.onerror = function() { showToast('读取文件失败，请重试', 'error'); };
+                reader.readAsText(file, 'UTF-8');
+            }
+
+            // ---- 替换事件绑定 ----
+            fileInput.addEventListener('change', function() {
+                if (this.files.length > 0) { handleFile(this.files[0]); }
+                this.value = '';
+            });
+            dropZone.addEventListener('dragover', function(e) { e.preventDefault();
+                this.classList.add('dragover'); });
+            dropZone.addEventListener('dragleave', function(e) { e.preventDefault();
+                this.classList.remove('dragover'); });
+            dropZone.addEventListener('drop', function(e) {
+                e.preventDefault();
+                this.classList.remove('dragover');
+                if (e.dataTransfer.files.length > 0) handleFile(e.dataTransfer.files[0]);
+            });
+            loadPasteBtn.addEventListener('click', loadPasteContent);
+            clearPasteBtn.addEventListener('click', function() {
+                pasteInput.value = '';
+                if (sourceType === 'paste') resetAll();
+                showToast('已清空粘贴内容', 'info', 1200);
+            });
+            addRuleBtn.addEventListener('click', function() { addRule('', ''); });
+            replaceBtn.addEventListener('click', performReplace);
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && e.ctrlKey) replaceBtn.click();
+                if (e.key === 'Escape') closePreview();
+            });
+            resetBtn.addEventListener('click', resetAll);
+            togglePreviewBtn.addEventListener('click', togglePreview);
+            downloadBtn.addEventListener('click', downloadFile);
+            copyBtn.addEventListener('click', copyContent);
+            runPreviewBtn.addEventListener('click', openPreview);
+            modalCloseBtn.addEventListener('click', closePreview);
+            previewModal.addEventListener('click', function(e) { if (e.target === this) closePreview(); });
+            pasteInput.addEventListener('keydown', function(e) {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault();
+                    loadPasteBtn.click(); }
+            });
+
+            // ---- 初始化替换 ----
+            addRule('', '');
+            statsBar.style.display = 'none';
+            resultActions.style.display = 'none';
+            downloadBtn.disabled = true;
+            togglePreviewBtn.textContent = '📄 显示原文件';
+            updateSourceBadge('none', '');
+
+
+            // ============================================================
+            //  4. 数据迁移功能
+            // ============================================================
+
+            const CONCURRENCY = 5;
+
+            const migrateApiUrl = document.getElementById('migrateApiUrl');
+            const migrateDropZone = document.getElementById('migrateDropZone');
+            const migrateFileInput = document.getElementById('migrateFileInput');
+            const migrateFileInfo = document.getElementById('migrateFileInfo');
+            const migrateFileName = document.getElementById('migrateFileName');
+            const migrateFileSize = document.getElementById('migrateFileSize');
+            const migrateRowCount = document.getElementById('migrateRowCount');
+            const migrateProgressFill = document.getElementById('migrateProgressFill');
+            const migrateTotal = document.getElementById('migrateTotal');
+            const migrateSuccess = document.getElementById('migrateSuccess');
+            const migrateFail = document.getElementById('migrateFail');
+            const migratePercent = document.getElementById('migratePercent');
+            const migrateUploadBtn = document.getElementById('migrateUploadBtn');
+            const migrateClearBtn = document.getElementById('migrateClearBtn');
+            const migrateLogBox = document.getElementById('migrateLogBox');
+
+            let migrateSheetData = [];
+            let isMigrating = false;
+            let migrateAbortController = null;
+
+            function migrateAddLog(message, type = 'info') {
+                const div = document.createElement('div');
+                div.className = 'log-entry log-' + type;
+                div.textContent = message;
+                migrateLogBox.appendChild(div);
+                migrateLogBox.scrollTop = migrateLogBox.scrollHeight;
+            }
+
+            function migrateUpdateStats(total, success, fail) {
+                migrateTotal.textContent = total;
+                migrateSuccess.textContent = success;
+                migrateFail.textContent = fail;
+                const percent = total === 0 ? 0 : Math.round((success + fail) / total * 100);
+                migratePercent.textContent = percent;
+                migrateProgressFill.style.width = percent + '%';
+                if (total > 0 && (success + fail) === total) {
+                    if (fail === 0) migrateAddLog('🎉 所有数据上传成功！', 'success');
+                    else migrateAddLog('⚠️ 上传完成，成功 ' + success + ' 条，失败 ' + fail + ' 条。', 'info');
+                    migrateUploadBtn.disabled = false;
+                    isMigrating = false;
+                }
+            }
+
+            function uploadRow(rowData, rowIndex, apiUrl) {
+                const payload = { ...rowData };
+                return fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload),
+                        signal: migrateAbortController ? migrateAbortController.signal : undefined
+                    })
+                    .then(response => {
+                        if (!response.ok) {
+                            return response.text().then(errText => {
+                                throw new Error('HTTP ' + response.status + ': ' + errText.substring(0, 100));
+                            });
+                        }
+                        return response.json();
+                    })
+                    .then(() => {
+                        migrateAddLog('✅ 第 ' + (rowIndex + 1) + ' 行上传成功', 'success');
+                        return true;
+                    })
+                    .catch(err => {
+                        migrateAddLog('❌ 第 ' + (rowIndex + 1) + ' 行上传失败: ' + err.message, 'error');
+                        return false;
+                    });
+            }
+
+            async function migrateStartUpload() {
+                let apiUrl = migrateApiUrl.value.trim();
+                if (!apiUrl) {
+                    migrateAddLog('❌ 请填写 API 地址。', 'error');
+                    return;
+                }
+                if (!apiUrl.startsWith('http://') && !apiUrl.startsWith('https://')) {
+                    migrateAddLog('❌ API 地址必须以 http:// 或 https:// 开头', 'error');
+                    return;
+                }
+                if (!migrateSheetData || migrateSheetData.length === 0) {
+                    migrateAddLog('❌ 没有可上传的数据，请先选择 Excel 文件。', 'error');
+                    return;
+                }
+                if (isMigrating) {
+                    migrateAddLog('⏳ 正在上传中，请勿重复操作。', 'info');
+                    return;
+                }
+
+                isMigrating = true;
+                migrateUploadBtn.disabled = true;
+                migrateAbortController = new AbortController();
+
+                const total = migrateSheetData.length;
+                let success = 0,
+                    fail = 0;
+                migrateUpdateStats(total, success, fail);
+                migrateAddLog('🚀 开始并发上传 ' + total + ' 条数据到 ' + apiUrl + '（并发数: ' + CONCURRENCY + '）...', 'info');
+
+                const pool = [];
+                let index = 0;
+
+                while (index < total) {
+                    while (pool.length < CONCURRENCY && index < total) {
+                        const i = index++;
+                        const promise = uploadRow(migrateSheetData[i], i, apiUrl)
+                            .then(result => {
+                                if (result) success++;
+                                else fail++;
+                                migrateUpdateStats(total, success, fail);
+                            })
+                            .finally(() => {
+                                const pos = pool.indexOf(promise);
+                                if (pos !== -1) pool.splice(pos, 1);
+                            });
+                        pool.push(promise);
+                    }
+                    if (pool.length > 0) {
+                        await Promise.race(pool);
+                    }
+                }
+                await Promise.all(pool);
+                migrateAddLog('🏁 上传流程结束。成功: ' + success + ', 失败: ' + fail, 'info');
+                migrateUploadBtn.disabled = false;
+                isMigrating = false;
+                migrateAbortController = null;
+            }
+
+            function migrateParseExcel(file) {
+                return new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = function(e) {
+                        try {
+                            const data = new Uint8Array(e.target.result);
+                            const workbook = XLSX.read(data, { type: 'array' });
+                            const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+                            const jsonData = XLSX.utils.sheet_to_json(firstSheet);
+                            if (!jsonData || jsonData.length === 0) {
+                                reject(new Error('Excel 表格无数据行'));
+                                return;
+                            }
+                            resolve(jsonData);
+                        } catch (err) {
+                            reject(new Error('解析失败: ' + err.message));
+                        }
+                    };
+                    reader.onerror = () => reject(new Error('文件读取失败'));
+                    reader.readAsArrayBuffer(file);
+                });
+            }
+
+            function migrateHandleFile(file) {
+                if (!file) return;
+                const ext = file.name.split('.').pop().toLowerCase();
+                if (!['xlsx', 'xls'].includes(ext)) {
+                    migrateAddLog('❌ 不支持的文件类型: ' + ext + '，请选择 .xlsx 或 .xls 文件', 'error');
+                    return;
+                }
+                migrateFileInfo.style.display = 'inline-flex';
+                migrateFileName.textContent = file.name;
+                migrateFileSize.textContent = '(' + (file.size / 1024).toFixed(2) + ' KB)';
+                migrateAddLog('📂 正在解析文件: ' + file.name + ' ...', 'info');
+
+                migrateParseExcel(file).then(data => {
+                    migrateSheetData = data;
+                    if (data.length > 0) {
+                        const columns = Object.keys(data[0]);
+                        migrateAddLog('📋 检测到列: ' + columns.join(', '), 'info');
+                        migrateRowCount.textContent = data.length + ' 行数据';
+                    }
+                    migrateAddLog('✅ 解析成功，共 ' + data.length + ' 条数据。', 'success');
+                    migrateUploadBtn.disabled = false;
+                    migrateUpdateStats(data.length, 0, 0);
+                }).catch(err => {
+                    migrateAddLog('❌ 解析失败: ' + err.message, 'error');
+                    migrateSheetData = [];
+                    migrateUploadBtn.disabled = true;
+                    migrateUpdateStats(0, 0, 0);
+                    migrateRowCount.textContent = '0 行数据';
+                });
+            }
+
+            function migrateOpenFileDialog() {
+                migrateFileInput.click();
+            }
+
+            function migrateInitDragAndDrop() {
+                migrateDropZone.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    migrateDropZone.classList.add('dragover');
+                });
+                migrateDropZone.addEventListener('dragleave', () => {
+                    migrateDropZone.classList.remove('dragover');
+                });
+                migrateDropZone.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    migrateDropZone.classList.remove('dragover');
+                    if (e.dataTransfer.files.length > 0) migrateHandleFile(e.dataTransfer.files[0]);
+                });
+                migrateDropZone.addEventListener('click', () => migrateOpenFileDialog());
+                migrateFileInput.addEventListener('change', (e) => {
+                    if (e.target.files.length) migrateHandleFile(e.target.files[0]);
+                });
+            }
+
+            // ---- 迁移事件绑定 ----
+            migrateInitDragAndDrop();
+            migrateUploadBtn.addEventListener('click', migrateStartUpload);
+            migrateUploadBtn.disabled = true;
+            migrateClearBtn.addEventListener('click', function() {
+                migrateLogBox.innerHTML = '';
+                migrateAddLog('📌 日志已清空', 'info');
+            });
+
+            // ---- 迁移初始化 ----
+            migrateAddLog('📌 请填写 API 地址，选择 Excel 文件并点击「开始上传」', 'info');
+
+            // ============================================================
+            //  5. 调整预览高度
+            // ============================================================
+            function adjustPreHeight() {
+                const pre = contentDisplay.querySelector('pre');
+                if (pre) {
+                    const vh = window.innerHeight;
+                    const maxH = Math.min(480, vh * 0.5);
+                    pre.style.maxHeight = maxH + 'px';
+                }
+            }
+            window.addEventListener('resize', adjustPreHeight);
+
+            // ============================================================
+            //  6. 暴露全局
+            // ============================================================
+            window.__app = {
+                // 替换
+                originalContent: () => originalContent,
+                modifiedContent: () => modifiedContent,
+                reset: resetAll,
+                replace: performReplace,
+                loadPaste: loadPasteContent,
+                addRule: addRule,
+                getRules: getAllRules,
+                openPreview: openPreview,
+                closePreview: closePreview,
+                // 迁移
+                migrateUpload: migrateStartUpload,
+                migrateReset: function() {
+                    migrateSheetData = [];
+                    migrateUploadBtn.disabled = true;
+                    migrateUpdateStats(0, 0, 0);
+                    migrateLogBox.innerHTML = '';
+                    migrateAddLog('📌 已重置迁移状态', 'info');
+                }
+            };
+
+            console.log('🔧 API 工具集已加载 (替换 + 迁移) — 自动扩展 /all — 新地址自动同步到迁移');
+
+        })();
+    </script>
+
+</body>
+</html>
