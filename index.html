@@ -486,6 +486,36 @@
             cursor: pointer;
         }
 
+        .migrate-paste-area {
+            padding: 28px 20px;
+            text-align: center;
+            border: 2px dashed var(--gray-300);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: var(--transition);
+            background: var(--gray-50);
+            outline: none;
+        }
+        .migrate-paste-area:hover,
+        .migrate-paste-area:focus {
+            border-color: var(--primary);
+            background: #f0f7ff;
+        }
+        .migrate-paste-area .icon {
+            font-size: 32px;
+            display: block;
+            margin-bottom: 8px;
+        }
+        .migrate-paste-area .main-text {
+            font-weight: 600;
+            color: var(--gray-700);
+            font-size: 14px;
+        }
+        .migrate-paste-area .sub-text {
+            font-size: 12px;
+            color: var(--gray-400);
+            margin-top: 4px;
+        }
         .migrate-file-info {
             margin-top: 12px;
             padding: 10px 16px;
@@ -1098,12 +1128,26 @@
                     <span class="icon">📊</span>
                     <div class="main-text">点击或拖拽文件到此处</div>
                     <div class="sub-text">支持 .xlsx, .xls 格式</div>
-                    <input type="file" id="migrateFileInput" accept=".xlsx,.xls">
+                    <input type="file" id="migrateFileInput" accept=".xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel">
                 </div>
                 <div id="migrateFileInfo" class="migrate-file-info" style="display:none;">
                     <span id="migrateFileName">file.xlsx</span>
                     <span class="size" id="migrateFileSize">(0 KB)</span>
                     <span style="color:var(--gray-400);font-weight:400;" id="migrateRowCount">0 行数据</span>
+                </div>
+            </div>
+
+            <!-- 粘贴上传 -->
+            <div class="card">
+                <div class="card-title">
+                    📋 粘贴上传
+                    <span class="badge">表格数据</span>
+                </div>
+                <div class="migrate-paste-area" id="migratePasteArea" tabindex="0">
+                    <span class="icon">📋</span>
+                    <div class="main-text">点击此处后按 Ctrl+V 粘贴</div>
+                    <div class="sub-text">支持粘贴 Excel 表格数据（复制单元格后粘贴）</div>
+                    <button class="btn btn-sm" id="migratePasteBtn" style="margin-top:10px;">📋 粘贴数据</button>
                 </div>
             </div>
 
@@ -1914,8 +1958,121 @@
                 });
             }
 
+            // ---- 粘贴上传 ----
+            function migrateParsePasteText(text) {
+                if (!text || !text.trim()) return [];
+                const lines = text.trim().split(/\r?\n/).filter(l => l.trim() !== '');
+                if (lines.length === 0) return [];
+                // 优先用tab分隔（从Excel复制的是TSV），其次用逗号
+                let delimiter = '\t';
+                if (lines[0].indexOf('\t') === -1 && lines[0].indexOf(',') !== -1) {
+                    delimiter = ',';
+                }
+                const headers = lines[0].split(delimiter).map(h => h.trim());
+                const data = [];
+                for (let i = 1; i < lines.length; i++) {
+                    const values = lines[i].split(delimiter);
+                    const row = {};
+                    headers.forEach((h, idx) => {
+                        if (h) row[h] = values[idx] !== undefined ? values[idx].trim() : '';
+                    });
+                    data.push(row);
+                }
+                return data;
+            }
+
+            function migrateHandlePasteData(data, sourceName) {
+                if (!data || data.length === 0) {
+                    migrateAddLog('❌ 未解析到有效数据', 'error');
+                    return;
+                }
+                migrateFileInfo.style.display = 'inline-flex';
+                migrateFileName.textContent = sourceName;
+                migrateFileSize.textContent = '(粘贴数据)';
+                migrateSheetData = data;
+                const columns = Object.keys(data[0]);
+                migrateAddLog('📋 检测到列: ' + columns.join(', '), 'info');
+                migrateRowCount.textContent = data.length + ' 行数据';
+                migrateAddLog('✅ 解析成功，共 ' + data.length + ' 条数据。', 'success');
+                migrateUploadBtn.disabled = false;
+                migrateUpdateStats(data.length, 0, 0);
+            }
+
+            function migrateInitPasteUpload() {
+                const pasteArea = document.getElementById('migratePasteArea');
+                const pasteBtn = document.getElementById('migratePasteBtn');
+                if (!pasteArea || !pasteBtn) return;
+
+                function handlePasteEvent(e) {
+                    e.preventDefault();
+                    const items = e.clipboardData?.items;
+                    // 优先处理粘贴的文件
+                    if (items && items.length > 0) {
+                        for (let item of items) {
+                            if (item.kind === 'file') {
+                                const file = item.getAsFile();
+                                if (file) {
+                                    const ext = file.name.split('.').pop().toLowerCase();
+                                    if (['xlsx', 'xls'].includes(ext)) {
+                                        migrateHandleFile(file);
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    // 处理粘贴的文本（从表格复制的数据）
+                    const text = e.clipboardData?.getData('text/plain');
+                    if (text && text.trim()) {
+                        const data = migrateParsePasteText(text);
+                        if (data.length > 0) {
+                            migrateHandlePasteData(data, '粘贴数据');
+                        } else {
+                            migrateAddLog('❌ 粘贴内容无法解析为表格数据', 'error');
+                        }
+                    } else {
+                        migrateAddLog('⚠️ 剪贴板中没有检测到文件或表格数据', 'warn');
+                    }
+                }
+
+                pasteArea.addEventListener('paste', handlePasteEvent);
+                pasteArea.addEventListener('click', () => pasteArea.focus());
+
+                pasteBtn.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    try {
+                        const text = await navigator.clipboard.readText();
+                        if (text && text.trim()) {
+                            const data = migrateParsePasteText(text);
+                            if (data.length > 0) {
+                                migrateHandlePasteData(data, '粘贴数据');
+                            } else {
+                                migrateAddLog('❌ 剪贴板内容无法解析为表格数据', 'error');
+                            }
+                        } else {
+                            migrateAddLog('⚠️ 剪贴板中没有检测到文本数据', 'warn');
+                            migrateAddLog('💡 提示：点击上方区域后按 Ctrl+V 粘贴，支持粘贴 Excel 文件', 'info');
+                        }
+                    } catch (err) {
+                        migrateAddLog('❌ 无法读取剪贴板: ' + err.message, 'error');
+                        migrateAddLog('💡 请点击上方虚线区域后按 Ctrl+V 粘贴', 'info');
+                    }
+                });
+
+                // 全局 paste 事件（在数据迁移tab时生效）
+                document.addEventListener('paste', (e) => {
+                    const tab = document.getElementById('tab-migrate');
+                    if (!tab || tab.style.display === 'none') return;
+                    // 如果焦点不在输入框中，则处理粘贴
+                    const activeEl = document.activeElement;
+                    if (activeEl && (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA')) return;
+                    handlePasteEvent(e);
+                });
+            }
+
             // ---- 迁移事件绑定 ----
             migrateInitDragAndDrop();
+            migrateInitPasteUpload();
             migrateUploadBtn.addEventListener('click', migrateStartUpload);
             migrateUploadBtn.disabled = true;
             migrateClearBtn.addEventListener('click', function() {
