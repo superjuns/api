@@ -2169,13 +2169,15 @@
                         // 继续尝试分页
                     }
 
-                    // 策略2: 如果 /all 失败，改用分页拉取
+                    // 策略2: 如果 /all 失败，尝试分页拉取
                     if (allData.length === 0) {
-                        migrateAddLog('⚠️ /all 不可用，自动切换为分页拉取模式', 'warn');
+                        migrateAddLog('⚠️ /all 不可用（可能流量超限），尝试分页拉取', 'warn');
                         const PAGE_SIZE = 100;
                         let page = 1;
                         let total = null;
                         let fetched = 0;
+                        let actualPageSize = null;  // 实际每页返回数量（探测平台限制）
+                        let sameCountStreak = 0;   // 连续返回相同数量的次数（检测平台是否不支持翻页）
 
                         while (true) {
                             let pageUrl = baseUrl + '?page=' + page + '&pageSize=' + PAGE_SIZE;
@@ -2192,12 +2194,32 @@
                                 migrateAddLog('📊 总数据量: ' + total + ' 条', 'info');
                             }
 
+                            // 探测实际每页大小
+                            if (actualPageSize === null) {
+                                actualPageSize = data.length;
+                                if (actualPageSize < PAGE_SIZE && total && total > actualPageSize) {
+                                    migrateAddLog('⚠️ 平台限制每页仅返回 ' + actualPageSize + ' 条（免费版限制）', 'warn');
+                                }
+                            }
+
                             allData = allData.concat(data);
                             fetched += data.length;
                             migrateAddLog('📥 第 ' + page + ' 页: ' + data.length + ' 条（累计 ' + fetched + (total ? '/' + total : '') + '）', 'info');
 
+                            // 检测：如果连续2页返回完全相同数量且没拉完，说明平台不支持翻页（永远返回最近N条）
+                            if (data.length === actualPageSize && total && fetched < total) {
+                                sameCountStreak++;
+                                if (sameCountStreak >= 2) {
+                                    migrateAddLog('❌ 检测到平台不支持翻页，每页都返回相同的最近 ' + actualPageSize + ' 条数据', 'error');
+                                    migrateAddLog('💡 建议：登录 wzkjgz 后台导出 Excel 文件，再用「Excel/粘贴」模式导入', 'info');
+                                    break;
+                                }
+                            } else {
+                                sameCountStreak = 0;
+                            }
+
                             // 取的数量不够一页，说明是最后一页了
-                            if (data.length < PAGE_SIZE) break;
+                            if (data.length < actualPageSize) break;
                             // 如果知道总数且已经取完
                             if (total !== null && fetched >= total) break;
 
@@ -2208,7 +2230,7 @@
                                 break;
                             }
                         }
-                        usedMethod = '分页拉取（共' + (page-1) + '页）';
+                        usedMethod = '分页拉取（共' + (page-1) + '页，' + fetched + '条' + (total ? '/共' + total + '条' : '') + '）';
                     }
 
                     if (allData.length === 0) {
