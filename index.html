@@ -1134,8 +1134,14 @@
                 </div>
             </div>
 
+            <!-- 数据源切换 -->
+            <div style="display:flex;gap:8px;margin-bottom:12px;">
+                <button class="btn tab-sub-btn active" data-src="excel" style="padding:8px 16px;border-radius:8px;font-size:13px;">📂 Excel / 粘贴</button>
+                <button class="btn tab-sub-btn" data-src="api" style="padding:8px 16px;border-radius:8px;font-size:13px;">🔗 源 API 直连</button>
+            </div>
+
             <!-- 上传 Excel -->
-            <div class="card">
+            <div class="card" id="migrateSrcExcel">
                 <div class="card-title">
                     📂 选择 Excel 文件
                     <span class="badge">.xlsx .xls</span>
