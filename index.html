@@ -506,6 +506,9 @@
             inset: 0;
             opacity: 0;
             cursor: pointer;
+            z-index: 10;
+            width: 100%;
+            height: 100%;
         }
         /* 移动端点击反馈 */
         .migrate-upload-area:active,
@@ -2060,9 +2063,7 @@
 
             function migrateOpenFileDialog() {
                 // iOS 修复：每次点击前重置 value，避免选择同一文件不触发 change 事件
-                migrateFileInput.value = '';
-                // 延时触发，避免移动端 click 与 touch 事件冲突导致弹两次
-                setTimeout(() => migrateFileInput.click(), 10);
+                if (migrateFileInput) migrateFileInput.value = '';
             }
 
             function migrateInitDragAndDrop() {
@@ -2078,30 +2079,20 @@
                     migrateDropZone.classList.remove('dragover');
                     if (e.dataTransfer.files.length > 0) migrateHandleFile(e.dataTransfer.files[0]);
                 });
-                // 桌面端点击
-                migrateDropZone.addEventListener('click', (e) => {
-                    e.preventDefault();
-                    migrateOpenFileDialog();
-                });
-                // 移动端 touch 支持（解决部分手机 click 不触发的问题）
+                // 移动端 touch 视觉反馈（不拦截点击，让原生 input 自己处理文件选择）
                 let touchStartTime = 0;
                 migrateDropZone.addEventListener('touchstart', () => {
                     touchStartTime = Date.now();
                     migrateDropZone.classList.add('dragover');
                 }, { passive: true });
-                migrateDropZone.addEventListener('touchend', (e) => {
+                migrateDropZone.addEventListener('touchend', () => {
                     migrateDropZone.classList.remove('dragover');
-                    const touchDuration = Date.now() - touchStartTime;
-                    // 短按（<300ms）视为点击，打开文件选择器
-                    if (touchDuration < 300) {
-                        e.preventDefault();
-                        migrateOpenFileDialog();
-                    }
-                }, { passive: false });
+                    migrateOpenFileDialog(); // 仅重置 value，不手动触发 click
+                }, { passive: true });
                 migrateDropZone.addEventListener('touchcancel', () => {
                     migrateDropZone.classList.remove('dragover');
                 }, { passive: true });
-                // change 事件加 try-catch，防止移动端异常
+                // change 事件
                 migrateFileInput.addEventListener('change', (e) => {
                     try {
                         if (e.target.files && e.target.files.length) {
