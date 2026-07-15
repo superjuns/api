@@ -1803,6 +1803,26 @@
             const migrateClearBtn = document.getElementById('migrateClearBtn');
             const migrateLogBox = document.getElementById('migrateLogBox');
 
+            // 游戏仓库与API的对应关系（用于迁移后提示哪些游戏需要更新）
+            const GAME_API_MAP = [
+                { name: '乘法预热', repo: 'chengfa-yure', apiId: '3on5m3kfyb', type: '排行榜' },
+                { name: '火柴算式', repo: 'huochai-suanshi', apiId: 'dvr2frebwx', type: '排行榜' },
+                { name: '数学大拔河', repo: 'bahe', apiId: 'sc37wirvgg', type: '排行榜' },
+                { name: '折纸小工坊', repo: 'zhezhi-gongfang', apiId: '08uh42ddft', type: '排行榜' },
+                { name: '七巧板拼图', repo: 'qiqiaoban', apiId: '6frl7m3zlw', type: '排行榜' },
+                { name: '一眼识数', repo: 'shishu', apiId: '6pwvws38id', type: '排行榜' },
+                { name: '扑克牌凑数', repo: 'coushu', apiId: 'ez1m8p37tv', type: '排行榜' },
+                { name: '看图列算式', repo: 'liesuanshi', apiId: 'x0joelczoy', type: '排行榜' },
+                { name: '变式闯关-离线', repo: 'bianshi', apiId: 'ic80kof9jq', type: '排行榜' },
+                { name: '变式闯关-AI', repo: 'bianshi', apiId: 'bj2awrwmfp', type: '排行榜' },
+                { name: 'AI错题集（变式）', repo: 'bianshi', apiId: 'auotd4g9jy', type: '题库' },
+                { name: '数学连环画', repo: 'lianhuanhua', apiId: 'qp2q80fahw', type: '排行榜' },
+                { name: '图形数数', repo: 'tuxingshushu', apiId: 'vylw99t9pn', type: '排行榜' },
+                { name: '每日一练', repo: 'jisuan', apiId: '86zpbmecar', type: '排行榜' },
+                { name: '白名单', repo: '全局', apiId: '5tmbx2o6rg', type: '白名单' },
+                { name: '游戏列表', repo: '全局', apiId: '9d5osbhmxw', type: '配置' },
+            ];
+
             let migrateSheetData = [];
             let isMigrating = false;
             let migrateAbortController = null;
@@ -2223,12 +2243,47 @@
                     migrateAddLog('✅ 拉取成功，共 ' + cleaned.length + ' 条数据（' + usedMethod + '）。', 'success');
                     migrateUploadBtn.disabled = false;
                     migrateUpdateStats(cleaned.length, 0, 0);
+
+                    // 检测哪些游戏使用了这个源API，提示需要更新
+                    let srcApiId = baseUrl.split('/').pop();
+                    let affectedGames = GAME_API_MAP.filter(g => g.apiId === srcApiId);
+                    if (affectedGames.length > 0) {
+                        let gameNames = affectedGames.map(g => g.name + '（' + g.repo + '）').join('、');
+                        migrateAddLog('⚠️ 检测到以下游戏使用了该旧 API: ' + gameNames, 'warn');
+                        migrateAddLog('💡 数据迁移完成后，请记得将这些游戏中的 API 地址更新为新地址', 'info');
+                        // 在UI上显示受影响游戏列表
+                        showAffectedGames(srcApiId);
+                    }
                 } catch (err) {
                     migrateAddLog('❌ 拉取失败: ' + err.message, 'error');
                 }
             }
 
             // ---- 数据源切换 ----
+            function showAffectedGames(apiId) {
+                let card = document.getElementById('migrateAffectedCard');
+                let list = document.getElementById('migrateAffectedList');
+                if (!card || !list) return;
+                let games = GAME_API_MAP.filter(g => g.apiId === apiId);
+                if (games.length === 0) {
+                    card.style.display = 'none';
+                    return;
+                }
+                let html = '<div style="display:flex;flex-direction:column;gap:6px;">';
+                games.forEach(g => {
+                    let typeColor = g.type === '排行榜' ? '#198754' : g.type === '题库' ? '#0d6efd' : '#6c757d';
+                    html += '<div style="display:flex;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--gray-100);">' +
+                        '<span style="font-size:18px;">🎮</span>' +
+                        '<span style="font-weight:600;flex:1;">' + g.name + '</span>' +
+                        '<span style="font-size:12px;padding:2px 8px;border-radius:10px;background:var(--gray-100);color:var(--gray-600);">' + g.repo + '</span>' +
+                        '<span style="font-size:12px;padding:2px 8px;border-radius:10px;background:' + typeColor + '15;color:' + typeColor + ';">' + g.type + '</span>' +
+                        '</div>';
+                });
+                html += '</div>';
+                list.innerHTML = html;
+                card.style.display = '';
+            }
+
             function migrateInitSourceSwitch() {
                 const btns = document.querySelectorAll('.tab-sub-btn[data-src]');
                 const excelCard = document.getElementById('migrateSrcExcel');
