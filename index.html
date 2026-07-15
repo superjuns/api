@@ -486,6 +486,22 @@
             cursor: pointer;
         }
 
+        .tab-sub-btn {
+            border: 1.5px solid var(--gray-200);
+            background: #fff;
+            color: var(--gray-600);
+            transition: var(--transition);
+            font-weight: 500;
+        }
+        .tab-sub-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+        .tab-sub-btn.active {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
         .migrate-paste-area {
             padding: 28px 20px;
             text-align: center;
@@ -1138,7 +1154,7 @@
             </div>
 
             <!-- 粘贴上传 -->
-            <div class="card">
+            <div class="card" id="migrateSrcPaste">
                 <div class="card-title">
                     📋 粘贴上传
                     <span class="badge">表格数据</span>
@@ -1148,6 +1164,23 @@
                     <div class="main-text">点击此处后按 Ctrl+V 粘贴</div>
                     <div class="sub-text">支持粘贴 Excel 表格数据（复制单元格后粘贴）</div>
                     <button class="btn btn-sm" id="migratePasteBtn" style="margin-top:10px;">📋 粘贴数据</button>
+                </div>
+            </div>
+
+            <!-- 源 API 拉取 -->
+            <div class="card" id="migrateSrcApi" style="display:none;">
+                <div class="card-title">
+                    🔗 源 API 地址
+                    <span class="badge">GET /all</span>
+                </div>
+                <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                    <input type="text" id="migrateSrcUrl" value=""
+                        placeholder="源 API 地址，如 https://wzkjgz.site/api/auotd4g9jy"
+                        style="flex:1;min-width:200px;padding:10px 14px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:var(--font);background:#ffffff;color:var(--gray-800);">
+                    <button class="btn btn-secondary" id="migrateFetchBtn" style="white-space:nowrap;">⬇️ 拉取数据</button>
+                </div>
+                <div style="margin-top:8px;font-size:12px;color:var(--gray-400);">
+                    💡 自动追加 /all 读取全部数据，直接作为迁移数据源，无需 Excel 中转
                 </div>
             </div>
 
@@ -2073,6 +2106,101 @@
             // ---- 迁移事件绑定 ----
             migrateInitDragAndDrop();
             migrateInitPasteUpload();
+
+            // ---- 源 API 直连拉取 ----
+            async function migrateFetchFromApi() {
+                let srcUrl = document.getElementById('migrateSrcUrl').value.trim();
+                if (!srcUrl) {
+                    migrateAddLog('❌ 请填写源 API 地址', 'error');
+                    return;
+                }
+                if (!srcUrl.startsWith('http://') && !srcUrl.startsWith('https://')) {
+                    migrateAddLog('❌ 源 API 地址必须以 http:// 或 https:// 开头', 'error');
+                    return;
+                }
+                // 自动追加 /all
+                let fetchUrl = srcUrl;
+                if (!fetchUrl.endsWith('/all')) {
+                    fetchUrl = srcUrl.replace(/\/?$/, '/all');
+                }
+                migrateAddLog('📡 正在从源 API 拉取数据: ' + fetchUrl + ' ...', 'info');
+                try {
+                    let res = await fetch(fetchUrl);
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    let d = await res.json();
+                    let data = d.submissions || d.data || d.list || [];
+                    if (!Array.isArray(data)) {
+                        throw new Error('返回数据格式不正确，未找到 submissions/data/list 数组');
+                    }
+                    if (data.length === 0) {
+                        migrateAddLog('⚠️ 源 API 返回 0 条数据', 'warn');
+                        return;
+                    }
+                    // 去掉内部字段，只保留业务字段
+                    const cleaned = data.map(row => {
+                        const obj = {};
+                        for (let k in row) {
+                            if (k === '_id' || k === '__v' || k === '_ip') continue;
+                            if (k === 'id' && typeof row[k] === 'number') continue;
+                            if (k === 'timestamp' || k === 'created_at' || k === 'updated_at') continue;
+                            obj[k] = row[k];
+                        }
+                        return obj;
+                    });
+
+                    migrateSheetData = cleaned;
+                    migrateFileInfo.style.display = 'inline-flex';
+                    migrateFileName.textContent = '源API: ' + srcUrl.split('/').pop();
+                    migrateFileSize.textContent = '(直连拉取)';
+                    const columns = Object.keys(cleaned[0] || {});
+                    migrateAddLog('📋 检测到列: ' + columns.join(', '), 'info');
+                    migrateRowCount.textContent = cleaned.length + ' 行数据';
+                    migrateAddLog('✅ 拉取成功，共 ' + cleaned.length + ' 条数据。', 'success');
+                    migrateUploadBtn.disabled = false;
+                    migrateUpdateStats(cleaned.length, 0, 0);
+                } catch (err) {
+                    migrateAddLog('❌ 拉取失败: ' + err.message, 'error');
+                }
+            }
+
+            // ---- 数据源切换 ----
+            function migrateInitSourceSwitch() {
+                const btns = document.querySelectorAll('.tab-sub-btn[data-src]');
+                const excelCard = document.getElementById('migrateSrcExcel');
+                const pasteCard = document.getElementById('migrateSrcPaste');
+                const apiCard = document.getElementById('migrateSrcApi');
+                btns.forEach(btn => {
+                    btn.addEventListener('click', () => {
+                        btns.forEach(b => b.classList.remove('active'));
+                        btn.classList.add('active');
+                        const src = btn.getAttribute('data-src');
+                        if (src === 'excel') {
+                            excelCard.style.display = '';
+                            pasteCard.style.display = '';
+                            apiCard.style.display = 'none';
+                        } else {
+                            excelCard.style.display = 'none';
+                            pasteCard.style.display = 'none';
+                            apiCard.style.display = '';
+                        }
+                    });
+                });
+
+                // 源API拉取按钮
+                const fetchBtn = document.getElementById('migrateFetchBtn');
+                if (fetchBtn) {
+                    fetchBtn.addEventListener('click', migrateFetchFromApi);
+                }
+                // 源API地址框回车也触发
+                const srcUrlInput = document.getElementById('migrateSrcUrl');
+                if (srcUrlInput) {
+                    srcUrlInput.addEventListener('keydown', (e) => {
+                        if (e.key === 'Enter') migrateFetchFromApi();
+                    });
+                }
+            }
+
+            migrateInitSourceSwitch();
             migrateUploadBtn.addEventListener('click', migrateStartUpload);
             migrateUploadBtn.disabled = true;
             migrateClearBtn.addEventListener('click', function() {
