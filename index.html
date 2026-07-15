@@ -4,8 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>API 工具集 · 替换 + 迁移</title>
-    <!-- XLSX 用于迁移功能 -->
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js">
+    <!-- XLSX 用于迁移功能（多CDN兜底，解决国内手机网络加载失败问题） -->
+    <script>
+    (function() {
+        var cdns = [
+            'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js',
+            'https://cdn.jsdelivr.net/npm/xlsx@0.20.2/dist/xlsx.full.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.20.2/xlsx.full.min.js',
+            'https://unpkg.com/xlsx@0.20.2/dist/xlsx.full.min.js'
+        ];
+        var idx = 0;
+        function loadNext() {
+            if (idx >= cdns.length) {
+                window.XLSX_LOAD_ERROR = true;
+                console.error('XLSX库所有CDN均加载失败');
+                return;
+            }
+            var s = document.createElement('script');
+            s.src = cdns[idx];
+            s.onload = function() { console.log('XLSX库加载成功（来源:' + cdns[idx] + '）'); };
+            s.onerror = function() { idx++; loadNext(); };
+            document.head.appendChild(s);
+        }
+        loadNext();
+    })();
     </script>
     <style>
         /* ============================================================
@@ -484,6 +506,26 @@
             inset: 0;
             opacity: 0;
             cursor: pointer;
+        }
+        /* 移动端点击反馈 */
+        .migrate-upload-area:active,
+        .migrate-paste-area:active {
+            transform: scale(0.98);
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+        /* XLSX 加载失败提示条 */
+        .xlsx-warn-bar {
+            background: #FEF3C7;
+            color: #92400E;
+            padding: 10px 14px;
+            border-radius: 8px;
+            font-size: 13px;
+            margin-bottom: 12px;
+            display: none;
+        }
+        .xlsx-warn-bar.show {
+            display: block;
         }
 
         .tab-sub-btn {
@@ -1115,6 +1157,11 @@
         TAB 2: 数据迁移
         ========================================================== -->
         <div class="tab-content" id="tab-migrate">
+
+            <!-- XLSX 加载失败警告 -->
+            <div class="xlsx-warn-bar" id="xlsxWarnBar">
+                ⚠️ Excel解析库加载失败，无法使用Excel上传功能。请检查网络连接后刷新页面，或使用「粘贴上传」功能。
+            </div>
 
             <!-- API 地址 -->
             <div class="card">
@@ -1965,9 +2012,26 @@
 
             function migrateHandleFile(file) {
                 if (!file) return;
+                // 同时检查扩展名和 MIME type（手机端文件扩展名可能不准确）
                 const ext = file.name.split('.').pop().toLowerCase();
-                if (!['xlsx', 'xls'].includes(ext)) {
-                    migrateAddLog('❌ 不支持的文件类型: ' + ext + '，请选择 .xlsx 或 .xls 文件', 'error');
+                const mimeType = file.type || '';
+                const isExcel = ['xlsx', 'xls'].includes(ext) ||
+                    mimeType.includes('spreadsheet') ||
+                    mimeType.includes('excel') ||
+                    mimeType.includes('vnd.ms-excel') ||
+                    mimeType.includes('vnd.openxmlformats') ||
+                    mimeType === 'application/octet-stream' && ['xlsx', 'xls'].includes(ext);
+                if (!isExcel) {
+                    migrateAddLog('❌ 不支持的文件类型: ' + ext + '（' + mimeType + '），请选择 .xlsx 或 .xls 文件', 'error');
+                    return;
+                }
+                // 检查 XLSX 库是否加载成功
+                if (typeof XLSX === 'undefined') {
+                    if (window.XLSX_LOAD_ERROR) {
+                        migrateAddLog('❌ Excel解析库加载失败，请检查网络连接后刷新页面重试，或切换到 Wi-Fi 网络', 'error');
+                    } else {
+                        migrateAddLog('⏳ Excel解析库正在加载中，请稍等几秒再试...', 'warning');
+                    }
                     return;
                 }
                 migrateFileInfo.style.display = 'inline-flex';
@@ -1995,7 +2059,10 @@
             }
 
             function migrateOpenFileDialog() {
-                migrateFileInput.click();
+                // iOS 修复：每次点击前重置 value，避免选择同一文件不触发 change 事件
+                migrateFileInput.value = '';
+                // 延时触发，避免移动端 click 与 touch 事件冲突导致弹两次
+                setTimeout(() => migrateFileInput.click(), 10);
             }
 
             function migrateInitDragAndDrop() {
@@ -2011,9 +2078,38 @@
                     migrateDropZone.classList.remove('dragover');
                     if (e.dataTransfer.files.length > 0) migrateHandleFile(e.dataTransfer.files[0]);
                 });
-                migrateDropZone.addEventListener('click', () => migrateOpenFileDialog());
+                // 桌面端点击
+                migrateDropZone.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    migrateOpenFileDialog();
+                });
+                // 移动端 touch 支持（解决部分手机 click 不触发的问题）
+                let touchStartTime = 0;
+                migrateDropZone.addEventListener('touchstart', () => {
+                    touchStartTime = Date.now();
+                    migrateDropZone.classList.add('dragover');
+                }, { passive: true });
+                migrateDropZone.addEventListener('touchend', (e) => {
+                    migrateDropZone.classList.remove('dragover');
+                    const touchDuration = Date.now() - touchStartTime;
+                    // 短按（<300ms）视为点击，打开文件选择器
+                    if (touchDuration < 300) {
+                        e.preventDefault();
+                        migrateOpenFileDialog();
+                    }
+                }, { passive: false });
+                migrateDropZone.addEventListener('touchcancel', () => {
+                    migrateDropZone.classList.remove('dragover');
+                }, { passive: true });
+                // change 事件加 try-catch，防止移动端异常
                 migrateFileInput.addEventListener('change', (e) => {
-                    if (e.target.files.length) migrateHandleFile(e.target.files[0]);
+                    try {
+                        if (e.target.files && e.target.files.length) {
+                            migrateHandleFile(e.target.files[0]);
+                        }
+                    } catch (err) {
+                        migrateAddLog('❌ 文件选择异常: ' + err.message, 'error');
+                    }
                 });
             }
 
@@ -2072,7 +2168,13 @@
                                 const file = item.getAsFile();
                                 if (file) {
                                     const ext = file.name.split('.').pop().toLowerCase();
-                                    if (['xlsx', 'xls'].includes(ext)) {
+                                    const mimeType = file.type || '';
+                                    const isExcel = ['xlsx', 'xls'].includes(ext) ||
+                                        mimeType.includes('spreadsheet') ||
+                                        mimeType.includes('excel') ||
+                                        mimeType.includes('vnd.ms-excel') ||
+                                        mimeType.includes('vnd.openxmlformats');
+                                    if (isExcel) {
                                         migrateHandleFile(file);
                                         return;
                                     }
@@ -2128,6 +2230,23 @@
                     handlePasteEvent(e);
                 });
             }
+
+            // ---- 检查 XLSX 库加载状态 ----
+            function checkXlsxLoaded() {
+                const warnBar = document.getElementById('xlsxWarnBar');
+                if (typeof XLSX !== 'undefined') {
+                    if (warnBar) warnBar.classList.remove('show');
+                    return true;
+                }
+                if (window.XLSX_LOAD_ERROR) {
+                    if (warnBar) warnBar.classList.add('show');
+                    return false;
+                }
+                // 还在加载中，等会儿再查
+                setTimeout(checkXlsxLoaded, 500);
+                return false;
+            }
+            checkXlsxLoaded();
 
             // ---- 迁移事件绑定 ----
             migrateInitDragAndDrop();
