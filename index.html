@@ -6,6 +6,23 @@
     <title>API 工具集 · 替换 + 迁移</title>
     <!-- XLSX 用于迁移功能（多CDN兜底，解决国内手机网络加载失败问题） -->
     <script>
+// === Supabase 配置（自动生成）===
+const SUPABASE_KEY = 'sb_publishable_EAfnJgOY7VsXPdZkEcrvBA_0qkNGlyD';
+const _origFetch = window.fetch;
+window.fetch = function(url, options) {
+    options = options || {};
+    var u = (typeof url === 'string') ? url : (url && url.url) || '';
+    if (u.indexOf('bjugehxenrvaqtodjkbc.supabase.co') !== -1) {
+        options.headers = Object.assign({}, options.headers || {}, {
+            'apikey': SUPABASE_KEY,
+            'Authorization': 'Bearer ' + SUPABASE_KEY,
+            'Content-Type': 'application/json'
+        });
+    }
+    return _origFetch.call(this, url, options);
+};
+// === Supabase 配置结束 ===
+
     (function() {
         var cdns = [
             'https://cdn.sheetjs.com/xlsx-0.20.2/package/dist/xlsx.full.min.js',
@@ -1231,7 +1248,7 @@
                 </div>
                 <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
                     <input type="text" id="migrateSrcUrl" value=""
-                        placeholder="源 API 地址，如 https://wzkjgz.site/api/auotd4g9jy"
+                        placeholder="源 API 地址，如 https://bjugehxenrvaqtodjkbc.supabase.co/rest/v1/"
                         style="flex:1;min-width:200px;padding:10px 14px;border:1.5px solid var(--gray-200);border-radius:8px;font-size:14px;font-family:var(--font);background:#ffffff;color:var(--gray-800);">
                     <button class="btn btn-secondary" id="migrateFetchBtn" style="white-space:nowrap;">⬇️ 拉取数据</button>
                 </div>
@@ -1590,8 +1607,8 @@
 
                     // ---- 自动扩展 /all 替换（如果原地址不以 /all 结尾） ----
                     if (!oldApi.endsWith('/all')) {
-                        const oldApiAll = oldApi.replace(/\/+$/, '') + '/all';
-                        const newApiAll = newApi.replace(/\/+$/, '') + '/all';
+                        const oldApiAll = oldApi.replace(/\/+$/, '') + "?select=*";
+                        const newApiAll = newApi.replace(/\/+$/, '') + "?select=*";
                         const regexAll = new RegExp(escapeRegExp(oldApiAll), 'g');
                         const matchesAll = result.match(regexAll);
                         const countAll = matchesAll ? matchesAll.length : 0;
@@ -2264,12 +2281,12 @@
                 try {
                     // 策略1: 先尝试 /all 全量拉取
                     try {
-                        let allUrl = baseUrl + '/all';
+                        let allUrl = baseUrl + "?select=*";
                         migrateAddLog('🔍 尝试 /all 全量拉取...', 'info');
                         let res = await fetch(allUrl);
                         if (res.ok) {
                             let d = await res.json();
-                            let data = d.submissions || d.data || d.list || [];
+                            let data = d || d.data || d.list || [];
                             if (Array.isArray(data) && data.length > 0) {
                                 allData = data;
                                 usedMethod = '/all 全量';
@@ -2294,7 +2311,7 @@
                             let res = await fetch(pageUrl);
                             if (!res.ok) throw new Error('分页拉取失败，HTTP ' + res.status + ' (第' + page + '页)');
                             let d = await res.json();
-                            let data = d.submissions || d.data || d.list || [];
+                            let data = d || d.data || d.list || [];
 
                             if (!Array.isArray(data) || data.length === 0) break;
 
@@ -2321,7 +2338,7 @@
                                 sameCountStreak++;
                                 if (sameCountStreak >= 2) {
                                     migrateAddLog('❌ 检测到平台不支持翻页，每页都返回相同的最近 ' + actualPageSize + ' 条数据', 'error');
-                                    migrateAddLog('💡 建议：登录 wzkjgz 后台导出 Excel 文件，再用「Excel/粘贴」模式导入', 'info');
+                                    migrateAddLog('💡 建议：从 Supabase 后台导出 Excel 文件，再用「Excel/粘贴」模式导入', 'info');
                                     break;
                                 }
                             } else {
